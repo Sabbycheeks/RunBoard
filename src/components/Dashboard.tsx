@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { supplyHouseLabel } from "@/lib/format";
 import { computeStats } from "@/lib/stats";
 import type { PreventableStatus, Run } from "@/lib/types";
-import AddRunModal from "./AddRunModal";
+import AddRunModal, { type TechnicianInfo } from "./AddRunModal";
 import KpiCards from "./KpiCards";
 import RunsTable from "./RunsTable";
 
@@ -47,15 +47,25 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
 
   const stats = useMemo(() => computeStats(filtered), [filtered]);
 
-  const lists = useMemo(
-    () => ({
-      technicians: uniq(runs.map((r) => r.technician)),
+  const lists = useMemo(() => {
+    // Runs are newest first, so the first entry per technician is their latest department/address.
+    const techDirectory = new Map<string, TechnicianInfo>();
+    for (const r of runs) {
+      if (r.technician && !techDirectory.has(r.technician)) {
+        techDirectory.set(r.technician, {
+          name: r.technician,
+          department: r.department,
+          address: r.technicianAddress,
+        });
+      }
+    }
+    return {
+      technicians: [...techDirectory.values()].sort((a, b) => a.name.localeCompare(b.name)),
       runners: uniq(runs.map((r) => r.runnerName)),
-      supplyHouses: uniq(runs.map((r) => supplyHouseLabel(r)).filter((s) => s !== "—")),
+      supplyHouseAddresses: uniq(runs.map((r) => r.supplyHouseAddress)),
       runTypes: uniq(runs.flatMap((r) => r.runTypes)),
-    }),
-    [runs],
-  );
+    };
+  }, [runs]);
 
   const addRun = useCallback((run: Run) => {
     setRuns((cur) => [run, ...cur]);
@@ -169,7 +179,7 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
         onAdd={addRun}
         technicians={lists.technicians}
         runners={lists.runners}
-        supplyHouses={lists.supplyHouses}
+        supplyHouseAddresses={lists.supplyHouseAddresses}
       />
 
       {toast && (

@@ -3,13 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import type { Run } from "@/lib/types";
 
+export interface TechnicianInfo {
+  name: string;
+  department: string;
+  address: string;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
   onAdd: (run: Run) => void;
-  technicians: string[];
+  technicians: TechnicianInfo[];
   runners: string[];
-  supplyHouses: string[];
+  supplyHouseAddresses: string[];
 }
 
 interface ItemRow {
@@ -24,12 +30,13 @@ const inputCls =
   "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20";
 
 /** Mock data-entry form. Adds a draft run to local state only; nothing is saved. */
-export default function AddRunModal({ open, onClose, onAdd, technicians, runners, supplyHouses }: Props) {
+export default function AddRunModal({ open, onClose, onAdd, technicians, runners, supplyHouseAddresses }: Props) {
   const [technician, setTechnician] = useState("");
   const [department, setDepartment] = useState(DEPARTMENTS[0]);
-  const [runner, setRunner] = useState("");
-  const [supplyHouse, setSupplyHouse] = useState("");
   const [runType, setRunType] = useState(RUN_TYPES[0]);
+  const [technicianAddress, setTechnicianAddress] = useState("");
+  const [supplyHouseAddress, setSupplyHouseAddress] = useState("");
+  const [runner, setRunner] = useState("");
   const [items, setItems] = useState<ItemRow[]>([{ name: "", quantity: "1" }]);
   const firstField = useRef<HTMLInputElement>(null);
 
@@ -46,10 +53,20 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
   const reset = () => {
     setTechnician("");
     setDepartment(DEPARTMENTS[0]);
-    setRunner("");
-    setSupplyHouse("");
     setRunType(RUN_TYPES[0]);
+    setTechnicianAddress("");
+    setSupplyHouseAddress("");
+    setRunner("");
     setItems([{ name: "", quantity: "1" }]);
+  };
+
+  // Picking a known technician pre-fills their department and last-used address.
+  const changeTechnician = (name: string) => {
+    setTechnician(name);
+    const known = technicians.find((t) => t.name.toLowerCase() === name.trim().toLowerCase());
+    if (!known) return;
+    if (known.department && DEPARTMENTS.includes(known.department)) setDepartment(known.department);
+    if (known.address && !technicianAddress) setTechnicianAddress(known.address);
   };
 
   const updateItem = (i: number, patch: Partial<ItemRow>) =>
@@ -69,10 +86,10 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
       description: subitems.map((s) => s.name).join(", "),
       date: local,
       technician: technician.trim(),
-      department: runType === "Technician" ? department : "",
-      technicianAddress: "",
-      supplyHouseName: supplyHouse.trim(),
-      supplyHouseAddress: "",
+      department,
+      technicianAddress: technicianAddress.trim(),
+      supplyHouseName: "",
+      supplyHouseAddress: supplyHouseAddress.trim(),
       runTypes: [runType],
       poNumber: "",
       runnerName: runner.trim(),
@@ -122,42 +139,23 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
 
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
           <div className="space-y-4 overflow-y-auto px-5 py-4">
-            <div>
-              <Label htmlFor="runType">Run Type</Label>
-              <div id="runType" className="grid grid-cols-3 gap-2">
-                {RUN_TYPES.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setRunType(t)}
-                    className={`rounded-lg border px-2 py-2 text-sm font-medium transition-colors ${
-                      runType === t
-                        ? "border-blue-600 bg-blue-50 text-blue-700"
-                        : "border-slate-300 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <Label htmlFor="technician">Technician</Label>
+                <Label htmlFor="technician">Technician Name</Label>
                 <input
                   ref={firstField}
                   id="technician"
                   list="technician-list"
                   className={inputCls}
                   value={technician}
-                  onChange={(e) => setTechnician(e.target.value)}
-                  placeholder="Who needs the part?"
-                  required={runType === "Technician"}
+                  onChange={(e) => changeTechnician(e.target.value)}
+                  placeholder="Who needs the parts?"
+                  autoComplete="off"
+                  required
                 />
                 <datalist id="technician-list">
                   {technicians.map((t) => (
-                    <option key={t} value={t} />
+                    <option key={t.name} value={t.name} />
                   ))}
                 </datalist>
               </div>
@@ -176,44 +174,62 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="runner">Runner</Label>
-                <input
-                  id="runner"
-                  list="runner-list"
-                  className={inputCls}
-                  value={runner}
-                  onChange={(e) => setRunner(e.target.value)}
-                  placeholder="Assigned runner"
-                  required
-                />
-                <datalist id="runner-list">
-                  {runners.map((r) => (
-                    <option key={r} value={r} />
-                  ))}
-                </datalist>
+            <fieldset>
+              <legend className="mb-1 block text-sm font-medium text-slate-700">Type of Run</legend>
+              <div className="grid grid-cols-3 gap-2">
+                {RUN_TYPES.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setRunType(t)}
+                    aria-pressed={runType === t}
+                    className={`rounded-lg border px-2 py-2 text-sm font-medium transition-colors ${
+                      runType === t
+                        ? "border-blue-600 bg-blue-50 text-blue-700"
+                        : "border-slate-300 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
               </div>
-              <div>
-                <Label htmlFor="supplyHouse">Supply House</Label>
-                <input
-                  id="supplyHouse"
-                  list="supply-list"
-                  className={inputCls}
-                  value={supplyHouse}
-                  onChange={(e) => setSupplyHouse(e.target.value)}
-                  placeholder="e.g. Carr Supply"
-                />
-                <datalist id="supply-list">
-                  {supplyHouses.map((s) => (
-                    <option key={s} value={s} />
-                  ))}
-                </datalist>
-              </div>
+            </fieldset>
+
+            <div>
+              <Label htmlFor="technicianAddress">Technician Address</Label>
+              <input
+                id="technicianAddress"
+                className={inputCls}
+                value={technicianAddress}
+                onChange={(e) => setTechnicianAddress(e.target.value)}
+                placeholder="Job site, e.g. 123 Main St, Columbus, OH"
+                autoComplete="off"
+                required
+              />
             </div>
 
             <div>
-              <Label htmlFor="item-0">Items Requested</Label>
+              <Label htmlFor="supplyHouseAddress" optional>
+                Supply House Address
+              </Label>
+              <input
+                id="supplyHouseAddress"
+                list="supply-list"
+                className={inputCls}
+                value={supplyHouseAddress}
+                onChange={(e) => setSupplyHouseAddress(e.target.value)}
+                placeholder="Where to pick up the parts, if known"
+                autoComplete="off"
+              />
+              <datalist id="supply-list">
+                {supplyHouseAddresses.map((s) => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
+            </div>
+
+            <div>
+              <Label htmlFor="item-0">Items to Bring to the Technician</Label>
               <div className="space-y-2">
                 {items.map((item, i) => (
                   <div key={i} className="flex gap-2">
@@ -254,6 +270,26 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
                 + Add another item
               </button>
             </div>
+
+            <div>
+              <Label htmlFor="runner" optional>
+                Assign Runner
+              </Label>
+              <input
+                id="runner"
+                list="runner-list"
+                className={inputCls}
+                value={runner}
+                onChange={(e) => setRunner(e.target.value)}
+                placeholder="Can be assigned later"
+                autoComplete="off"
+              />
+              <datalist id="runner-list">
+                {runners.map((r) => (
+                  <option key={r} value={r} />
+                ))}
+              </datalist>
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3 sm:rounded-b-2xl">
@@ -277,10 +313,11 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
   );
 }
 
-function Label({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }) {
+function Label({ htmlFor, optional, children }: { htmlFor: string; optional?: boolean; children: React.ReactNode }) {
   return (
     <label htmlFor={htmlFor} className="mb-1 block text-sm font-medium text-slate-700">
       {children}
+      {optional && <span className="ml-1 font-normal text-slate-400">(optional)</span>}
     </label>
   );
 }
