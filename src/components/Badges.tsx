@@ -29,6 +29,7 @@ export function PreventableBadge({ status, reason }: { status: PreventableStatus
 const RUN_TYPE_STYLES: Record<string, string> = {
   Technician: "bg-blue-50 text-blue-700 ring-blue-600/20",
   "Supply House": "bg-indigo-50 text-indigo-700 ring-indigo-600/20",
+  Trash: "bg-stone-100 text-stone-700 ring-stone-500/20",
   Other: "bg-slate-100 text-slate-700 ring-slate-500/20",
 };
 

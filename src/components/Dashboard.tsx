@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { supplyHouseLabel } from "@/lib/format";
 import { computeStats } from "@/lib/stats";
 import type { PreventableStatus, Run } from "@/lib/types";
-import RunFormModal, { type TechnicianInfo } from "./RunFormModal";
+import RunFormModal, { type RunnerInfo, type TechnicianInfo } from "./RunFormModal";
 import KpiCards from "./KpiCards";
 import RunsTable from "./RunsTable";
 
@@ -56,9 +56,18 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
         techDirectory.set(r.technician, { name: r.technician, department: r.department });
       }
     }
+    // Same idea for runners: keep the email from each runner's most recent run that has one.
+    const runnerDirectory = new Map<string, RunnerInfo>();
+    for (const r of runs) {
+      if (!r.runnerName) continue;
+      const key = r.runnerName.toLowerCase();
+      const known = runnerDirectory.get(key);
+      if (!known) runnerDirectory.set(key, { name: r.runnerName, email: r.runnerEmail });
+      else if (!known.email && r.runnerEmail) known.email = r.runnerEmail;
+    }
     return {
       technicians: [...techDirectory.values()].sort((a, b) => a.name.localeCompare(b.name)),
-      runners: uniq(runs.map((r) => r.runnerName)),
+      runners: [...runnerDirectory.values()].sort((a, b) => a.name.localeCompare(b.name)),
       supplyHouseAddresses: uniq(runs.map((r) => r.supplyHouseAddress)),
       runTypes: uniq(runs.flatMap((r) => r.runTypes)),
     };

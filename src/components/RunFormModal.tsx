@@ -8,13 +8,19 @@ export interface TechnicianInfo {
   department: string;
 }
 
+export interface RunnerInfo {
+  name: string;
+  /** Email from this runner's most recent run, or "" if none recorded. */
+  email: string;
+}
+
 interface Props {
   /** The run to edit; omit to create a new run. */
   run?: Run;
   onClose: () => void;
   onSave: (run: Run) => void;
   technicians: TechnicianInfo[];
-  runners: string[];
+  runners: RunnerInfo[];
   supplyHouseAddresses: string[];
 }
 
@@ -23,7 +29,7 @@ interface ItemRow {
   quantity: string;
 }
 
-const RUN_TYPES = ["Technician", "Supply House", "Other"];
+const RUN_TYPES = ["Technician", "Supply House", "Trash", "Other"];
 const DEPARTMENTS = ["Plumbing Service", "Plumbing Install", "HVAC Service", "HVAC Install"];
 export const PREVENTABLE_REASONS = [
   "Replenishment",
@@ -48,10 +54,12 @@ export default function RunFormModal({ run, onClose, onSave, technicians, runner
   const isEdit = !!run;
   const [technician, setTechnician] = useState(run?.technician ?? "");
   const [department, setDepartment] = useState(run ? run.department : DEPARTMENTS[0]);
-  const [runTypes, setRunTypes] = useState<string[]>(run?.runTypes.length ? run.runTypes : [RUN_TYPES[0]]);
+  // One type per run. Older runs tagged with several (e.g. "Technician, Other") open on the first.
+  const [runType, setRunType] = useState(run?.runTypes.find((t) => RUN_TYPES.includes(t)) ?? RUN_TYPES[0]);
   const [technicianAddress, setTechnicianAddress] = useState(run?.technicianAddress ?? "");
   const [supplyHouseAddress, setSupplyHouseAddress] = useState(run?.supplyHouseAddress ?? "");
   const [runner, setRunner] = useState(run?.runnerName ?? "");
+  const [runnerEmail, setRunnerEmail] = useState(run?.runnerEmail ?? "");
   const [preventable, setPreventable] = useState<PreventableStatus>(run?.preventable ?? "Unclassified");
   const [reason, setReason] = useState(
     run?.preventable === "Preventable" ? matchReason(run.preventableReason) : "",
@@ -70,7 +78,7 @@ export default function RunFormModal({ run, onClose, onSave, technicians, runner
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const needsTechnician = runTypes.includes("Technician");
+  const needsTechnician = runType === "Technician";
   // Keep a department from older data visible even if it isn't in the standard list.
   const departmentOptions = department && !DEPARTMENTS.includes(department) ? [department, ...DEPARTMENTS] : DEPARTMENTS;
 
@@ -81,11 +89,12 @@ export default function RunFormModal({ run, onClose, onSave, technicians, runner
     if (known?.department) setDepartment(known.department);
   };
 
-  const toggleRunType = (t: string) =>
-    setRunTypes((cur) => {
-      if (!cur.includes(t)) return RUN_TYPES.filter((x) => x === t || cur.includes(x));
-      return cur.length > 1 ? cur.filter((x) => x !== t) : cur; // keep at least one
-    });
+  // Picking a known runner fills in the email from their most recent run.
+  const changeRunner = (name: string) => {
+    setRunner(name);
+    const known = runners.find((r) => r.name.toLowerCase() === name.trim().toLowerCase());
+    if (known?.email) setRunnerEmail(known.email);
+  };
 
   const choosePreventable = (value: PreventableStatus) => {
     // Clicking the selected option again clears it back to Unclassified.
@@ -108,8 +117,9 @@ export default function RunFormModal({ run, onClose, onSave, technicians, runner
       department,
       technicianAddress: technicianAddress.trim(),
       supplyHouseAddress: supplyHouseAddress.trim(),
-      runTypes,
+      runTypes: [runType],
       runnerName: runner.trim(),
+      runnerEmail: runner.trim() ? runnerEmail.trim().toLowerCase() : "",
       preventable,
       preventableReason:
         preventable === "Preventable" ? reason : preventable === "Not Preventable" ? "Not Preventable" : "",
@@ -137,7 +147,6 @@ export default function RunFormModal({ run, onClose, onSave, technicians, runner
       date: local,
       supplyHouseName: "",
       poNumber: "",
-      runnerEmail: "",
       startTrip: null,
       endTrip: null,
       durationText: "",
@@ -218,9 +227,9 @@ export default function RunFormModal({ run, onClose, onSave, technicians, runner
 
             <fieldset>
               <legend className="mb-1 block text-sm font-medium text-slate-700">Type of Run</legend>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {RUN_TYPES.map((t) => (
-                  <ToggleButton key={t} active={runTypes.includes(t)} onClick={() => toggleRunType(t)}>
+                  <ToggleButton key={t} active={runType === t} onClick={() => setRunType(t)}>
                     {t}
                   </ToggleButton>
                 ))}
@@ -347,24 +356,41 @@ export default function RunFormModal({ run, onClose, onSave, technicians, runner
               )}
             </fieldset>
 
-            <div>
-              <Label htmlFor="runner" optional>
-                Assign Runner
-              </Label>
-              <input
-                id="runner"
-                list="runner-list"
-                className={inputCls}
-                value={runner}
-                onChange={(e) => setRunner(e.target.value)}
-                placeholder="Can be assigned later"
-                autoComplete="off"
-              />
-              <datalist id="runner-list">
-                {runners.map((r) => (
-                  <option key={r} value={r} />
-                ))}
-              </datalist>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="runner" optional>
+                  Assign Runner
+                </Label>
+                <input
+                  id="runner"
+                  list="runner-list"
+                  className={inputCls}
+                  value={runner}
+                  onChange={(e) => changeRunner(e.target.value)}
+                  placeholder="Can be assigned later"
+                  autoComplete="off"
+                />
+                <datalist id="runner-list">
+                  {runners.map((r) => (
+                    <option key={r.name} value={r.name} />
+                  ))}
+                </datalist>
+              </div>
+              <div>
+                <Label htmlFor="runnerEmail" optional>
+                  Runner Email
+                </Label>
+                <input
+                  id="runnerEmail"
+                  type="email"
+                  className={inputCls}
+                  value={runnerEmail}
+                  onChange={(e) => setRunnerEmail(e.target.value)}
+                  placeholder={runner.trim() ? "name@company.com" : "Add a runner first"}
+                  disabled={!runner.trim()}
+                  autoComplete="off"
+                />
+              </div>
             </div>
           </div>
 
