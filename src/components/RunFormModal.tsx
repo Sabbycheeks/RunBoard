@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { nowLocal } from "@/lib/format";
+import { durationText, nowLocal } from "@/lib/format";
 import type { PreventableStatus, Run } from "@/lib/types";
 
 export interface TechnicianInfo {
@@ -80,6 +80,13 @@ export default function RunFormModal({
       ? run.subitems.map((s) => ({ name: s.name, quantity: s.quantity == null ? "" : String(s.quantity) }))
       : [emptyItem()],
   );
+  const [poNumber, setPoNumber] = useState(run?.poNumber ?? "");
+  // Trip details (edit only). Times use the datetime-local format "YYYY-MM-DDTHH:mm".
+  const [startTrip, setStartTrip] = useState(run?.startTrip ?? "");
+  const [endTrip, setEndTrip] = useState(run?.endTrip ?? "");
+  const [mileage, setMileage] = useState(run?.mileage == null ? "" : String(run.mileage));
+  const [tripError, setTripError] = useState("");
+  const timerRunning = run?.timerStartedAt != null;
   const firstField = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -137,12 +144,19 @@ export default function RunFormModal({
         preventable === "Preventable" ? reason : preventable === "Not Preventable" ? "Not Preventable" : "",
       subitems,
       description: subitems.map((s) => s.name).join(", "),
+      poNumber: poNumber.trim(),
     };
 
     if (run) {
+      const trip = tripFields(run, startTrip, endTrip, mileage);
+      if (typeof trip === "string") {
+        setTripError(trip);
+        return;
+      }
       onSave({
         ...run,
         ...fields,
+        ...(timerRunning ? { mileage: trip.mileage } : trip),
         // The supply house name came from the export; drop it if the address was changed.
         supplyHouseName: fields.supplyHouseAddress === run.supplyHouseAddress ? run.supplyHouseName : "",
         isEdited: !run.isDraft,
@@ -157,7 +171,6 @@ export default function RunFormModal({
       name: "New run",
       date: nowLocal(now),
       supplyHouseName: "",
-      poNumber: "",
       startTrip: null,
       endTrip: null,
       durationText: "",
@@ -294,6 +307,20 @@ export default function RunFormModal({
             </div>
 
             <div>
+              <Label htmlFor="poNumber" optional>
+                PO Number
+              </Label>
+              <input
+                id="poNumber"
+                className={inputCls}
+                value={poNumber}
+                onChange={(e) => setPoNumber(e.target.value)}
+                placeholder="e.g. 1190610298"
+                autoComplete="off"
+              />
+            </div>
+
+            <div>
               <Label htmlFor="item-0">Items to Bring to the Technician</Label>
               <div className="space-y-2">
                 {items.map((item, i) => (
@@ -414,6 +441,68 @@ export default function RunFormModal({
                 />
               </div>
             </div>
+
+            {isEdit && (
+              <fieldset className="rounded-lg border border-slate-200 p-3">
+                <legend className="px-1 text-sm font-medium text-slate-700">Trip Details</legend>
+                {timerRunning && (
+                  <p className="mb-2 text-xs text-slate-500">
+                    The run timer is going — end the run to edit its trip times.
+                  </p>
+                )}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="startTrip">Start Trip</Label>
+                    <input
+                      id="startTrip"
+                      type="datetime-local"
+                      className={inputCls}
+                      value={startTrip}
+                      onChange={(e) => {
+                        setStartTrip(e.target.value);
+                        setTripError("");
+                      }}
+                      disabled={timerRunning}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="endTrip">End Trip</Label>
+                    <input
+                      id="endTrip"
+                      type="datetime-local"
+                      className={inputCls}
+                      value={endTrip}
+                      min={startTrip || undefined}
+                      onChange={(e) => {
+                        setEndTrip(e.target.value);
+                        setTripError("");
+                      }}
+                      disabled={timerRunning}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="mileage">Mileage</Label>
+                    <input
+                      id="mileage"
+                      type="number"
+                      min={0}
+                      step="0.1"
+                      className={inputCls}
+                      value={mileage}
+                      onChange={(e) => {
+                        setMileage(e.target.value);
+                        setTripError("");
+                      }}
+                      placeholder="Miles"
+                    />
+                  </div>
+                  <p className="self-end pb-2 text-xs text-slate-500">
+                    Duration and total hours update from the start and end times.
+                  </p>
+                </div>
+                {tripError && <p className="mt-2 text-xs text-red-600">{tripError}</p>}
+              </fieldset>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3 sm:rounded-b-2xl">
@@ -435,6 +524,35 @@ export default function RunFormModal({
       </div>
     </div>
   );
+}
+
+/**
+ * Builds the trip fields for an edited run, or returns an error message.
+ * Duration and total hours are only recalculated when a trip time actually changed,
+ * so imported runs keep the export's own duration text.
+ */
+function tripFields(run: Run, start: string, end: string, mileage: string) {
+  const startTrip = start || null;
+  const endTrip = end || null;
+  const miles = mileage.trim() === "" ? null : Number(mileage);
+  if (miles != null && (!Number.isFinite(miles) || miles < 0)) return "Mileage must be a positive number.";
+
+  const base = { startTrip, endTrip, mileage: miles };
+  if (startTrip === run.startTrip && endTrip === run.endTrip) {
+    return { ...base, durationText: run.durationText, durationMinutes: run.durationMinutes, totalHours: run.totalHours };
+  }
+  if (!startTrip || !endTrip) {
+    return { ...base, durationText: "", durationMinutes: null, totalHours: null };
+  }
+  // Both values are local wall-clock strings, so parsing them the same way gives a correct difference.
+  const ms = new Date(endTrip).getTime() - new Date(startTrip).getTime();
+  if (ms < 0) return "End trip must be after start trip.";
+  return {
+    ...base,
+    durationText: durationText(ms),
+    durationMinutes: ms / 60000,
+    totalHours: Math.round((ms / 3600000) * 100) / 100,
+  };
 }
 
 /** Maps a reason from the export (any casing) onto the standard list, or "" if it isn't one. */
