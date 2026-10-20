@@ -34,6 +34,8 @@ export interface Run {
   subitems: Subitem[];
   /** True for runs created in the UI during this session (not persisted). */
   isDraft?: boolean;
+  /** True for imported runs changed in the UI during this session (not persisted). */
+  isEdited?: boolean;
 }
 
 export interface RunData {

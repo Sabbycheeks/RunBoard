@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Run } from "@/lib/types";
+import type { PreventableStatus, Run } from "@/lib/types";
 
 export interface TechnicianInfo {
   name: string;
   department: string;
-  address: string;
 }
 
 interface Props {
-  open: boolean;
+  /** The run to edit; omit to create a new run. */
+  run?: Run;
   onClose: () => void;
-  onAdd: (run: Run) => void;
+  onSave: (run: Run) => void;
   technicians: TechnicianInfo[];
   runners: string[];
   supplyHouseAddresses: string[];
@@ -25,50 +25,73 @@ interface ItemRow {
 
 const RUN_TYPES = ["Technician", "Supply House", "Other"];
 const DEPARTMENTS = ["Plumbing Service", "Plumbing Install", "HVAC Service", "HVAC Install"];
+export const PREVENTABLE_REASONS = [
+  "Replenishment",
+  "Truck Stock",
+  "Sales Issue",
+  "Warehouse Error",
+  "Tech Admitted Fault",
+];
 
 // Base input style without a width, so row layouts can size fields themselves.
 const fieldCls =
   "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20";
 const inputCls = `w-full ${fieldCls}`;
 
-/** Mock data-entry form. Adds a draft run to local state only; nothing is saved. */
-export default function AddRunModal({ open, onClose, onAdd, technicians, runners, supplyHouseAddresses }: Props) {
-  const [technician, setTechnician] = useState("");
-  const [department, setDepartment] = useState(DEPARTMENTS[0]);
-  const [runType, setRunType] = useState(RUN_TYPES[0]);
-  const [technicianAddress, setTechnicianAddress] = useState("");
-  const [supplyHouseAddress, setSupplyHouseAddress] = useState("");
-  const [runner, setRunner] = useState("");
-  const [items, setItems] = useState<ItemRow[]>([{ name: "", quantity: "1" }]);
+const emptyItem = (): ItemRow => ({ name: "", quantity: "1" });
+
+/**
+ * Create / edit form for a run. Changes live in the browser only; nothing is saved.
+ * Mounted fresh each time it opens, so state is initialised from `run`.
+ */
+export default function RunFormModal({ run, onClose, onSave, technicians, runners, supplyHouseAddresses }: Props) {
+  const isEdit = !!run;
+  const [technician, setTechnician] = useState(run?.technician ?? "");
+  const [department, setDepartment] = useState(run ? run.department : DEPARTMENTS[0]);
+  const [runTypes, setRunTypes] = useState<string[]>(run?.runTypes.length ? run.runTypes : [RUN_TYPES[0]]);
+  const [technicianAddress, setTechnicianAddress] = useState(run?.technicianAddress ?? "");
+  const [supplyHouseAddress, setSupplyHouseAddress] = useState(run?.supplyHouseAddress ?? "");
+  const [runner, setRunner] = useState(run?.runnerName ?? "");
+  const [preventable, setPreventable] = useState<PreventableStatus>(run?.preventable ?? "Unclassified");
+  const [reason, setReason] = useState(
+    run?.preventable === "Preventable" ? matchReason(run.preventableReason) : "",
+  );
+  const [items, setItems] = useState<ItemRow[]>(
+    run?.subitems.length
+      ? run.subitems.map((s) => ({ name: s.name, quantity: s.quantity == null ? "" : String(s.quantity) }))
+      : [emptyItem()],
+  );
   const firstField = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!open) return;
     firstField.current?.focus();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [onClose]);
 
-  if (!open) return null;
+  const needsTechnician = runTypes.includes("Technician");
+  // Keep a department from older data visible even if it isn't in the standard list.
+  const departmentOptions = department && !DEPARTMENTS.includes(department) ? [department, ...DEPARTMENTS] : DEPARTMENTS;
 
-  const reset = () => {
-    setTechnician("");
-    setDepartment(DEPARTMENTS[0]);
-    setRunType(RUN_TYPES[0]);
-    setTechnicianAddress("");
-    setSupplyHouseAddress("");
-    setRunner("");
-    setItems([{ name: "", quantity: "1" }]);
-  };
-
-  // Picking a known technician pre-fills their department and last-used address.
+  // Picking a known technician pre-fills their department (the address is always typed in).
   const changeTechnician = (name: string) => {
     setTechnician(name);
     const known = technicians.find((t) => t.name.toLowerCase() === name.trim().toLowerCase());
-    if (!known) return;
-    if (known.department && DEPARTMENTS.includes(known.department)) setDepartment(known.department);
-    if (known.address && !technicianAddress) setTechnicianAddress(known.address);
+    if (known?.department) setDepartment(known.department);
+  };
+
+  const toggleRunType = (t: string) =>
+    setRunTypes((cur) => {
+      if (!cur.includes(t)) return RUN_TYPES.filter((x) => x === t || cur.includes(x));
+      return cur.length > 1 ? cur.filter((x) => x !== t) : cur; // keep at least one
+    });
+
+  const choosePreventable = (value: PreventableStatus) => {
+    // Clicking the selected option again clears it back to Unclassified.
+    const next = preventable === value ? "Unclassified" : value;
+    setPreventable(next);
+    if (next !== "Preventable") setReason("");
   };
 
   const updateItem = (i: number, patch: Partial<ItemRow>) =>
@@ -79,22 +102,41 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
     const subitems = items
       .filter((i) => i.name.trim())
       .map((i) => ({ name: i.name.trim(), quantity: i.quantity ? Number(i.quantity) : null }));
-    const now = new Date();
-    const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 
-    onAdd({
-      id: `draft-${now.getTime()}`,
-      name: "New run",
-      description: subitems.map((s) => s.name).join(", "),
-      date: local,
+    const fields = {
       technician: technician.trim(),
       department,
       technicianAddress: technicianAddress.trim(),
-      supplyHouseName: "",
       supplyHouseAddress: supplyHouseAddress.trim(),
-      runTypes: [runType],
-      poNumber: "",
+      runTypes,
       runnerName: runner.trim(),
+      preventable,
+      preventableReason:
+        preventable === "Preventable" ? reason : preventable === "Not Preventable" ? "Not Preventable" : "",
+      subitems,
+      description: subitems.map((s) => s.name).join(", "),
+    };
+
+    if (run) {
+      onSave({
+        ...run,
+        ...fields,
+        // The supply house name came from the export; drop it if the address was changed.
+        supplyHouseName: fields.supplyHouseAddress === run.supplyHouseAddress ? run.supplyHouseName : "",
+        isEdited: !run.isDraft,
+      });
+      return;
+    }
+
+    const now = new Date();
+    const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    onSave({
+      ...fields,
+      id: `draft-${now.getTime()}`,
+      name: "New run",
+      date: local,
+      supplyHouseName: "",
+      poNumber: "",
       runnerEmail: "",
       startTrip: null,
       endTrip: null,
@@ -102,13 +144,8 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
       durationMinutes: null,
       totalHours: null,
       mileage: null,
-      preventable: "Unclassified",
-      preventableReason: "",
-      subitems,
       isDraft: true,
     });
-    reset();
-    onClose();
   };
 
   return (
@@ -117,15 +154,15 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="add-run-title"
+        aria-labelledby="run-form-title"
         className="relative flex max-h-[92vh] w-full flex-col rounded-t-2xl bg-white shadow-xl sm:max-w-lg sm:rounded-2xl"
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <div>
-            <h2 id="add-run-title" className="text-base font-semibold text-slate-900">
-              Add New Run
+            <h2 id="run-form-title" className="text-base font-semibold text-slate-900">
+              {isEdit ? "Edit Run" : "Add New Run"}
             </h2>
-            <p className="text-xs text-slate-500">Prototype only — entries are not saved.</p>
+            <p className="text-xs text-slate-500">Prototype only — changes are not saved.</p>
           </div>
           <button
             type="button"
@@ -143,7 +180,9 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
           <div className="space-y-4 overflow-y-auto px-5 py-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <Label htmlFor="technician">Technician Name</Label>
+                <Label htmlFor="technician" optional={!needsTechnician}>
+                  Technician Name
+                </Label>
                 <input
                   ref={firstField}
                   id="technician"
@@ -153,7 +192,7 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
                   onChange={(e) => changeTechnician(e.target.value)}
                   placeholder="Who needs the parts?"
                   autoComplete="off"
-                  required
+                  required={needsTechnician}
                 />
                 <datalist id="technician-list">
                   {technicians.map((t) => (
@@ -169,7 +208,8 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
                   value={department}
                   onChange={(e) => setDepartment(e.target.value)}
                 >
-                  {DEPARTMENTS.map((d) => (
+                  {!department && <option value="">Select…</option>}
+                  {departmentOptions.map((d) => (
                     <option key={d}>{d}</option>
                   ))}
                 </select>
@@ -180,25 +220,17 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
               <legend className="mb-1 block text-sm font-medium text-slate-700">Type of Run</legend>
               <div className="grid grid-cols-3 gap-2">
                 {RUN_TYPES.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setRunType(t)}
-                    aria-pressed={runType === t}
-                    className={`rounded-lg border px-2 py-2 text-sm font-medium transition-colors ${
-                      runType === t
-                        ? "border-blue-600 bg-blue-50 text-blue-700"
-                        : "border-slate-300 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
+                  <ToggleButton key={t} active={runTypes.includes(t)} onClick={() => toggleRunType(t)}>
                     {t}
-                  </button>
+                  </ToggleButton>
                 ))}
               </div>
             </fieldset>
 
             <div>
-              <Label htmlFor="technicianAddress">Technician Address</Label>
+              <Label htmlFor="technicianAddress" optional={!needsTechnician}>
+                Technician Address
+              </Label>
               <input
                 id="technicianAddress"
                 className={inputCls}
@@ -206,7 +238,7 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
                 onChange={(e) => setTechnicianAddress(e.target.value)}
                 placeholder="Job site, e.g. 123 Main St, Columbus, OH"
                 autoComplete="off"
-                required
+                required={needsTechnician}
               />
             </div>
 
@@ -266,12 +298,54 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
               </div>
               <button
                 type="button"
-                onClick={() => setItems((rows) => [...rows, { name: "", quantity: "1" }])}
+                onClick={() => setItems((rows) => [...rows, emptyItem()])}
                 className="mt-2 text-sm font-medium text-blue-600 hover:text-blue-800"
               >
                 + Add another item
               </button>
             </div>
+
+            <fieldset>
+              <legend className="mb-1 block text-sm font-medium text-slate-700">
+                Was this run preventable?
+                <span className="ml-1 font-normal text-slate-400">(optional)</span>
+              </legend>
+              <div className="grid grid-cols-2 gap-2">
+                <ToggleButton
+                  active={preventable === "Preventable"}
+                  onClick={() => choosePreventable("Preventable")}
+                  tone="amber"
+                >
+                  Preventable
+                </ToggleButton>
+                <ToggleButton
+                  active={preventable === "Not Preventable"}
+                  onClick={() => choosePreventable("Not Preventable")}
+                  tone="emerald"
+                >
+                  Not Preventable
+                </ToggleButton>
+              </div>
+              {preventable === "Preventable" && (
+                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                  <Label htmlFor="preventableReason">Why was it preventable?</Label>
+                  <select
+                    id="preventableReason"
+                    className={inputCls}
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    required
+                  >
+                    <option value="" disabled>
+                      Choose a reason…
+                    </option>
+                    {PREVENTABLE_REASONS.map((r) => (
+                      <option key={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </fieldset>
 
             <div>
               <Label htmlFor="runner" optional>
@@ -306,12 +380,48 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
               type="submit"
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
             >
-              Create Run
+              {isEdit ? "Save Changes" : "Create Run"}
             </button>
           </div>
         </form>
       </div>
     </div>
+  );
+}
+
+/** Maps a reason from the export (any casing) onto the standard list, or "" if it isn't one. */
+function matchReason(value: string): string {
+  return PREVENTABLE_REASONS.find((r) => r.toLowerCase() === value.trim().toLowerCase()) ?? "";
+}
+
+const TONES = {
+  blue: "border-blue-600 bg-blue-50 text-blue-700",
+  amber: "border-amber-500 bg-amber-50 text-amber-800",
+  emerald: "border-emerald-600 bg-emerald-50 text-emerald-700",
+};
+
+function ToggleButton({
+  active,
+  onClick,
+  tone = "blue",
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  tone?: keyof typeof TONES;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-lg border px-2 py-2 text-sm font-medium transition-colors ${
+        active ? TONES[tone] : "border-slate-300 text-slate-600 hover:bg-slate-50"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 

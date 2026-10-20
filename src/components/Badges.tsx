@@ -50,10 +50,21 @@ export function RunTypeBadges({ types }: { types: string[] }) {
   );
 }
 
-export function DraftBadge() {
-  return (
-    <span className="rounded-md bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-      Draft
-    </span>
-  );
+/** Marks runs created or changed in this browser session. */
+export function ChangeBadge({ run }: { run: { isDraft?: boolean; isEdited?: boolean } }) {
+  if (run.isDraft) {
+    return (
+      <span className="rounded-md bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+        Draft
+      </span>
+    );
+  }
+  if (run.isEdited) {
+    return (
+      <span className="rounded-md bg-slate-700 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+        Edited
+      </span>
+    );
+  }
+  return null;
 }

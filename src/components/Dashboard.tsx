@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { supplyHouseLabel } from "@/lib/format";
 import { computeStats } from "@/lib/stats";
 import type { PreventableStatus, Run } from "@/lib/types";
-import AddRunModal, { type TechnicianInfo } from "./AddRunModal";
+import RunFormModal, { type TechnicianInfo } from "./RunFormModal";
 import KpiCards from "./KpiCards";
 import RunsTable from "./RunsTable";
 
@@ -21,7 +21,8 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<PreventableStatus | "All">("All");
   const [runType, setRunType] = useState("All");
-  const [modalOpen, setModalOpen] = useState(false);
+  // null = closed, "new" = creating, otherwise the run being edited.
+  const [form, setForm] = useState<Run | "new" | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
@@ -52,11 +53,7 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
     const techDirectory = new Map<string, TechnicianInfo>();
     for (const r of runs) {
       if (r.technician && !techDirectory.has(r.technician)) {
-        techDirectory.set(r.technician, {
-          name: r.technician,
-          department: r.department,
-          address: r.technicianAddress,
-        });
+        techDirectory.set(r.technician, { name: r.technician, department: r.department });
       }
     }
     return {
@@ -67,13 +64,22 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
     };
   }, [runs]);
 
-  const addRun = useCallback((run: Run) => {
-    setRuns((cur) => [run, ...cur]);
-    setToast("Draft run added to the board (not saved — prototype only).");
-    window.setTimeout(() => setToast(null), 3500);
-  }, []);
+  const saveRun = useCallback(
+    (run: Run) => {
+      const edited = runs.some((r) => r.id === run.id);
+      setRuns((cur) => (edited ? cur.map((r) => (r.id === run.id ? run : r)) : [run, ...cur]));
+      setForm(null);
+      setToast(
+        edited
+          ? "Run updated (not saved — prototype only)."
+          : "Draft run added to the board (not saved — prototype only).",
+      );
+      window.setTimeout(() => setToast(null), 3500);
+    },
+    [runs],
+  );
 
-  const closeModal = useCallback(() => setModalOpen(false), []);
+  const closeForm = useCallback(() => setForm(null), []);
 
   const filtersActive = query || status !== "All" || runType !== "All";
 
@@ -102,7 +108,7 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
           </div>
           <button
             type="button"
-            onClick={() => setModalOpen(true)}
+            onClick={() => setForm("new")}
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
           >
             <span className="text-lg leading-none">+</span> Add New Run
@@ -169,18 +175,21 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
             </div>
           </div>
 
-          <RunsTable runs={filtered} />
+          <RunsTable runs={filtered} onEdit={setForm} />
         </section>
       </main>
 
-      <AddRunModal
-        open={modalOpen}
-        onClose={closeModal}
-        onAdd={addRun}
-        technicians={lists.technicians}
-        runners={lists.runners}
-        supplyHouseAddresses={lists.supplyHouseAddresses}
-      />
+      {form && (
+        <RunFormModal
+          key={form === "new" ? "new" : form.id}
+          run={form === "new" ? undefined : form}
+          onClose={closeForm}
+          onSave={saveRun}
+          technicians={lists.technicians}
+          runners={lists.runners}
+          supplyHouseAddresses={lists.supplyHouseAddresses}
+        />
+      )}
 
       {toast && (
         <div

@@ -2,11 +2,24 @@ import { directionsUrl, formatDuration, formatTime, mapsUrl, supplyHouseLabel } 
 import type { Run } from "@/lib/types";
 
 /** Expanded view: routing + parts requested + trip details. */
-export default function RunDetail({ run }: { run: Run }) {
+export default function RunDetail({ run, onEdit }: { run: Run; onEdit: (run: Run) => void }) {
   const from = run.technicianAddress;
   const to = run.supplyHouseAddress;
 
   return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => onEdit(run)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:border-blue-500 hover:text-blue-700"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path d="M4 20h4L19 9l-4-4L4 16v4z" strokeLinejoin="round" />
+          </svg>
+          Edit run
+        </button>
+      </div>
     <div className="grid gap-4 lg:grid-cols-3">
       {/* Routing */}
       <section className="rounded-lg border border-slate-200 bg-white p-4 lg:col-span-1">
@@ -89,6 +102,7 @@ export default function RunDetail({ run }: { run: Run }) {
           />
         </dl>
       </section>
+    </div>
     </div>
   );
 }

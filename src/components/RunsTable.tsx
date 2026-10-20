@@ -3,10 +3,10 @@
 import { Fragment, useState } from "react";
 import { formatDate, formatDuration, formatTime, supplyHouseLabel } from "@/lib/format";
 import type { Run } from "@/lib/types";
-import { DraftBadge, PreventableBadge, RunTypeBadges } from "./Badges";
+import { ChangeBadge, PreventableBadge, RunTypeBadges } from "./Badges";
 import RunDetail from "./RunDetail";
 
-export default function RunsTable({ runs }: { runs: Run[] }) {
+export default function RunsTable({ runs, onEdit }: { runs: Run[]; onEdit: (run: Run) => void }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const toggle = (id: string) => setOpenId((cur) => (cur === id ? null : id));
 
@@ -51,7 +51,7 @@ export default function RunsTable({ runs }: { runs: Run[] }) {
                     <td className="whitespace-nowrap px-3 py-3">
                       <div className="flex items-center gap-2 font-medium text-slate-900">
                         {formatDate(run.date)}
-                        {run.isDraft && <DraftBadge />}
+                        <ChangeBadge run={run} />
                       </div>
                       <div className="text-xs text-slate-500">{formatTime(run.date)}</div>
                     </td>
@@ -86,7 +86,7 @@ export default function RunsTable({ runs }: { runs: Run[] }) {
                         <div className="mb-3 lg:hidden">
                           <RunTypeBadges types={run.runTypes} />
                         </div>
-                        <RunDetail run={run} />
+                        <RunDetail run={run} onEdit={onEdit} />
                       </td>
                     </tr>
                   )}
@@ -114,7 +114,7 @@ export default function RunsTable({ runs }: { runs: Run[] }) {
                     <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                       {formatDate(run.date)}
                       <span className="font-normal text-slate-500">{formatTime(run.date)}</span>
-                      {run.isDraft && <DraftBadge />}
+                      <ChangeBadge run={run} />
                     </p>
                     <p className="mt-0.5 truncate text-sm text-slate-700">
                       {run.technician || supplyHouseLabel(run)}
@@ -134,7 +134,7 @@ export default function RunsTable({ runs }: { runs: Run[] }) {
               </button>
               {open && (
                 <div className="border-t border-slate-200 bg-slate-50 p-3">
-                  <RunDetail run={run} />
+                  <RunDetail run={run} onEdit={onEdit} />
                 </div>
               )}
             </li>
