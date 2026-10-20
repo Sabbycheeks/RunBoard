@@ -30,7 +30,21 @@ interface ItemRow {
 }
 
 const RUN_TYPES = ["Technician", "Supply House", "Trash", "Other"];
-const DEPARTMENTS = ["Plumbing Service", "Plumbing Install", "HVAC Service", "HVAC Install"];
+const DEPARTMENTS = [
+  "Plumbing Service",
+  "Plumbing Install",
+  "Plumbing Maint.",
+  "Electric",
+  "HVAC Service",
+  "HVAC Install",
+  "HVAC Maint.",
+  "Duct Cleaning",
+  "Sewer Service",
+  "Sewer Install",
+  "Excavation",
+  "HVAC Sales",
+  "Plumbing Install Sales",
+];
 export const PREVENTABLE_REASONS = [
   "Replenishment",
   "Truck Stock",
