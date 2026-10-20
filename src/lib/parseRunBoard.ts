@@ -25,6 +25,8 @@ export function loadRunData(): RunData {
     } catch (err) {
       console.error(`Failed to parse ${RUN_BOARD_FILE}, using mock data`, err);
     }
+  } else {
+    console.warn(`${filePath} not found, using mock data`);
   }
   return { runs: mockRuns, source: "mock", sourceLabel: "Sample data" };
 }

@@ -6,4 +6,6 @@
 
 body {
   @apply bg-slate-50 text-slate-800 antialiased;
+  /* Inter's contextual alternates turn "34x10" into "34×10"; keep part numbers literal. */
+  font-feature-settings: "calt" 0;
 }

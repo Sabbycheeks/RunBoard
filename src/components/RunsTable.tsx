@@ -21,7 +21,7 @@ export default function RunsTable({ runs }: { runs: Run[] }) {
   return (
     <>
       {/* Desktop / tablet table */}
-      <div className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm md:block">
+      <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm md:block">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>

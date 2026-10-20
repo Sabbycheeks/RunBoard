@@ -26,8 +26,10 @@ interface ItemRow {
 const RUN_TYPES = ["Technician", "Supply House", "Other"];
 const DEPARTMENTS = ["Plumbing Service", "Plumbing Install", "HVAC Service", "HVAC Install"];
 
-const inputCls =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20";
+// Base input style without a width, so row layouts can size fields themselves.
+const fieldCls =
+  "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20";
+const inputCls = `w-full ${fieldCls}`;
 
 /** Mock data-entry form. Adds a draft run to local state only; nothing is saved. */
 export default function AddRunModal({ open, onClose, onAdd, technicians, runners, supplyHouseAddresses }: Props) {
@@ -235,7 +237,7 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
                   <div key={i} className="flex gap-2">
                     <input
                       id={`item-${i}`}
-                      className={inputCls}
+                      className={`${fieldCls} min-w-0 flex-1`}
                       value={item.name}
                       onChange={(e) => updateItem(i, { name: e.target.value })}
                       placeholder="Part / item name"
@@ -245,7 +247,7 @@ export default function AddRunModal({ open, onClose, onAdd, technicians, runners
                       type="number"
                       min={1}
                       aria-label="Quantity"
-                      className={`${inputCls} w-20 shrink-0`}
+                      className={`${fieldCls} w-20 shrink-0`}
                       value={item.quantity}
                       onChange={(e) => updateItem(i, { quantity: e.target.value })}
                     />
