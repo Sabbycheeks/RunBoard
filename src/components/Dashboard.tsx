@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { DEFAULT_DEPARTMENTS } from "@/lib/departments";
 import { supplyHouseLabel } from "@/lib/format";
 import { computeStats } from "@/lib/stats";
 import type { PreventableStatus, Run } from "@/lib/types";
+import DepartmentManager from "./DepartmentManager";
 import RunFormModal, { type RunnerInfo, type TechnicianInfo } from "./RunFormModal";
 import KpiCards from "./KpiCards";
 import RunsTable from "./RunsTable";
@@ -23,7 +25,14 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
   const [runType, setRunType] = useState("All");
   // null = closed, "new" = creating, otherwise the run being edited.
   const [form, setForm] = useState<Run | "new" | null>(null);
+  const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
+  const [editingDepartments, setEditingDepartments] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 3500);
+  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -49,12 +58,15 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
   const stats = useMemo(() => computeStats(filtered), [filtered]);
 
   const lists = useMemo(() => {
-    // Runs are newest first, so the first entry per technician is their latest department/address.
+    // Runs are newest first (new drafts go on top), so the first run per technician that has a
+    // department is the one they used last.
     const techDirectory = new Map<string, TechnicianInfo>();
     for (const r of runs) {
-      if (r.technician && !techDirectory.has(r.technician)) {
-        techDirectory.set(r.technician, { name: r.technician, department: r.department });
-      }
+      if (!r.technician) continue;
+      const key = r.technician.toLowerCase();
+      const known = techDirectory.get(key);
+      if (!known) techDirectory.set(key, { name: r.technician, department: r.department });
+      else if (!known.department && r.department) known.department = r.department;
     }
     // Same idea for runners: keep the email from each runner's most recent run that has one.
     const runnerDirectory = new Map<string, RunnerInfo>();
@@ -78,17 +90,26 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
       const edited = runs.some((r) => r.id === run.id);
       setRuns((cur) => (edited ? cur.map((r) => (r.id === run.id ? run : r)) : [run, ...cur]));
       setForm(null);
-      setToast(
+      showToast(
         edited
           ? "Run updated (not saved — prototype only)."
           : "Draft run added to the board (not saved — prototype only).",
       );
-      window.setTimeout(() => setToast(null), 3500);
     },
-    [runs],
+    [runs, showToast],
   );
 
   const closeForm = useCallback(() => setForm(null), []);
+  const openDepartments = useCallback(() => setEditingDepartments(true), []);
+  const closeDepartments = useCallback(() => setEditingDepartments(false), []);
+  const saveDepartments = useCallback(
+    (list: string[]) => {
+      setDepartments(list);
+      setEditingDepartments(false);
+      showToast("Department list updated (resets on reload — prototype only).");
+    },
+    [showToast],
+  );
 
   const filtersActive = query || status !== "All" || runType !== "All";
 
@@ -115,13 +136,22 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setForm("new")}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-          >
-            <span className="text-lg leading-none">+</span> Add New Run
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={openDepartments}
+              className="inline-flex flex-1 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 sm:flex-none"
+            >
+              Departments
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm("new")}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:flex-none"
+            >
+              <span className="text-lg leading-none">+</span> Add New Run
+            </button>
+          </div>
         </div>
       </header>
 
@@ -197,7 +227,13 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
           technicians={lists.technicians}
           runners={lists.runners}
           supplyHouseAddresses={lists.supplyHouseAddresses}
+          departments={departments}
+          onEditDepartments={openDepartments}
         />
+      )}
+
+      {editingDepartments && (
+        <DepartmentManager departments={departments} onClose={closeDepartments} onSave={saveDepartments} />
       )}
 
       {toast && (

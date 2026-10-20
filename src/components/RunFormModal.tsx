@@ -22,6 +22,8 @@ interface Props {
   technicians: TechnicianInfo[];
   runners: RunnerInfo[];
   supplyHouseAddresses: string[];
+  departments: string[];
+  onEditDepartments: () => void;
 }
 
 interface ItemRow {
@@ -30,21 +32,6 @@ interface ItemRow {
 }
 
 const RUN_TYPES = ["Technician", "Supply House", "Trash", "Other"];
-const DEPARTMENTS = [
-  "Plumbing Service",
-  "Plumbing Install",
-  "Plumbing Maint.",
-  "Electric",
-  "HVAC Service",
-  "HVAC Install",
-  "HVAC Maint.",
-  "Duct Cleaning",
-  "Sewer Service",
-  "Sewer Install",
-  "Excavation",
-  "HVAC Sales",
-  "Plumbing Install Sales",
-];
 export const PREVENTABLE_REASONS = [
   "Replenishment",
   "Truck Stock",
@@ -64,10 +51,19 @@ const emptyItem = (): ItemRow => ({ name: "", quantity: "1" });
  * Create / edit form for a run. Changes live in the browser only; nothing is saved.
  * Mounted fresh each time it opens, so state is initialised from `run`.
  */
-export default function RunFormModal({ run, onClose, onSave, technicians, runners, supplyHouseAddresses }: Props) {
+export default function RunFormModal({
+  run,
+  onClose,
+  onSave,
+  technicians,
+  runners,
+  supplyHouseAddresses,
+  departments,
+  onEditDepartments,
+}: Props) {
   const isEdit = !!run;
   const [technician, setTechnician] = useState(run?.technician ?? "");
-  const [department, setDepartment] = useState(run ? run.department : DEPARTMENTS[0]);
+  const [department, setDepartment] = useState(run ? run.department : departments[0]);
   // One type per run. Older runs tagged with several (e.g. "Technician, Other") open on the first.
   const [runType, setRunType] = useState(run?.runTypes.find((t) => RUN_TYPES.includes(t)) ?? RUN_TYPES[0]);
   const [technicianAddress, setTechnicianAddress] = useState(run?.technicianAddress ?? "");
@@ -93,8 +89,9 @@ export default function RunFormModal({ run, onClose, onSave, technicians, runner
   }, [onClose]);
 
   const needsTechnician = runType === "Technician";
-  // Keep a department from older data visible even if it isn't in the standard list.
-  const departmentOptions = department && !DEPARTMENTS.includes(department) ? [department, ...DEPARTMENTS] : DEPARTMENTS;
+  // Keep the run's department visible even if it isn't (or is no longer) in the list.
+  const departmentOptions =
+    department && !departments.includes(department) ? [department, ...departments] : departments;
 
   // Picking a known technician pre-fills their department (the address is always typed in).
   const changeTechnician = (name: string) => {
@@ -224,7 +221,18 @@ export default function RunFormModal({ run, onClose, onSave, technicians, runner
                 </datalist>
               </div>
               <div>
-                <Label htmlFor="department">Department</Label>
+                <div className="mb-1 flex items-baseline justify-between">
+                  <label htmlFor="department" className="text-sm font-medium text-slate-700">
+                    Department
+                  </label>
+                  <button
+                    type="button"
+                    onClick={onEditDepartments}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                  >
+                    Edit list
+                  </button>
+                </div>
                 <select
                   id="department"
                   className={inputCls}
