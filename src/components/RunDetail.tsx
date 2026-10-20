@@ -1,14 +1,22 @@
 import { directionsUrl, formatDuration, formatTime, mapsUrl, supplyHouseLabel } from "@/lib/format";
 import type { Run } from "@/lib/types";
+import { canTime, LiveElapsed, RunTimerButton } from "./RunTimer";
+
+interface Props {
+  run: Run;
+  onEdit: (run: Run) => void;
+  onToggleTimer: (run: Run) => void;
+}
 
 /** Expanded view: routing + parts requested + trip details. */
-export default function RunDetail({ run, onEdit }: { run: Run; onEdit: (run: Run) => void }) {
+export default function RunDetail({ run, onEdit, onToggleTimer }: Props) {
   const from = run.technicianAddress;
   const to = run.supplyHouseAddress;
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        {canTime(run) && <RunTimerButton run={run} onToggle={onToggleTimer} />}
         <button
           type="button"
           onClick={() => onEdit(run)}
@@ -83,7 +91,18 @@ export default function RunDetail({ run, onEdit }: { run: Run; onEdit: (run: Run
         <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
           <Field label="Start Trip" value={formatTime(run.startTrip)} />
           <Field label="End Trip" value={formatTime(run.endTrip)} />
-          <Field label="Duration" value={run.durationText || formatDuration(run.durationMinutes)} />
+          <Field
+            label="Duration"
+            value={
+              run.timerStartedAt != null ? (
+                <span className="font-medium text-red-600">
+                  <LiveElapsed startedAt={run.timerStartedAt} /> (in progress)
+                </span>
+              ) : (
+                run.durationText || formatDuration(run.durationMinutes)
+              )
+            }
+          />
           <Field label="Total Hours" value={run.totalHours != null ? run.totalHours.toFixed(2) : "—"} />
           <Field label="Mileage" value={run.mileage != null ? `${run.mileage} mi` : "—"} />
           <Field label="PO Number" value={run.poNumber || "—"} />

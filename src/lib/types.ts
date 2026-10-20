@@ -36,6 +36,8 @@ export interface Run {
   isDraft?: boolean;
   /** True for imported runs changed in the UI during this session (not persisted). */
   isEdited?: boolean;
+  /** Epoch ms when the run timer was started in the UI; set while a run is in progress. */
+  timerStartedAt?: number;
 }
 
 export interface RunData {

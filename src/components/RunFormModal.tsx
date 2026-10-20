@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { nowLocal } from "@/lib/format";
 import type { PreventableStatus, Run } from "@/lib/types";
 
 export interface TechnicianInfo {
@@ -150,12 +151,11 @@ export default function RunFormModal({
     }
 
     const now = new Date();
-    const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     onSave({
       ...fields,
       id: `draft-${now.getTime()}`,
       name: "New run",
-      date: local,
+      date: nowLocal(now),
       supplyHouseName: "",
       poNumber: "",
       startTrip: null,

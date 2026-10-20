@@ -5,8 +5,15 @@ import { formatDate, formatDuration, formatTime, supplyHouseLabel } from "@/lib/
 import type { Run } from "@/lib/types";
 import { ChangeBadge, PreventableBadge, RunTypeBadges } from "./Badges";
 import RunDetail from "./RunDetail";
+import { canTime, LiveElapsed, RunTimerButton } from "./RunTimer";
 
-export default function RunsTable({ runs, onEdit }: { runs: Run[]; onEdit: (run: Run) => void }) {
+interface Props {
+  runs: Run[];
+  onEdit: (run: Run) => void;
+  onToggleTimer: (run: Run) => void;
+}
+
+export default function RunsTable({ runs, onEdit, onToggleTimer }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
   const toggle = (id: string) => setOpenId((cur) => (cur === id ? null : id));
 
@@ -74,7 +81,11 @@ export default function RunsTable({ runs, onEdit }: { runs: Run[]; onEdit: (run:
                       <RunTypeBadges types={run.runTypes} />
                     </td>
                     <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">
-                      {formatDuration(run.durationMinutes)}
+                      {canTime(run) ? (
+                        <RunTimerButton run={run} onToggle={onToggleTimer} size="sm" />
+                      ) : (
+                        formatDuration(run.durationMinutes)
+                      )}
                     </td>
                     <td className="px-3 py-3">
                       <PreventableBadge status={run.preventable} reason={run.preventableReason} />
@@ -86,7 +97,7 @@ export default function RunsTable({ runs, onEdit }: { runs: Run[]; onEdit: (run:
                         <div className="mb-3 lg:hidden">
                           <RunTypeBadges types={run.runTypes} />
                         </div>
-                        <RunDetail run={run} onEdit={onEdit} />
+                        <RunDetail run={run} onEdit={onEdit} onToggleTimer={onToggleTimer} />
                       </td>
                     </tr>
                   )}
@@ -125,7 +136,20 @@ export default function RunsTable({ runs, onEdit }: { runs: Run[]; onEdit: (run:
                 <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                   <Mini label="Runner" value={run.runnerName || "—"} />
                   <Mini label="Supply" value={supplyHouseLabel(run)} />
-                  <Mini label="Duration" value={formatDuration(run.durationMinutes)} />
+                  <Mini
+                    label="Duration"
+                    value={
+                      run.timerStartedAt != null ? (
+                        <span className="text-red-600">
+                          <LiveElapsed startedAt={run.timerStartedAt} />
+                        </span>
+                      ) : canTime(run) ? (
+                        "Not started"
+                      ) : (
+                        formatDuration(run.durationMinutes)
+                      )
+                    }
+                  />
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   <PreventableBadge status={run.preventable} reason={run.preventableReason} />
@@ -134,7 +158,7 @@ export default function RunsTable({ runs, onEdit }: { runs: Run[]; onEdit: (run:
               </button>
               {open && (
                 <div className="border-t border-slate-200 bg-slate-50 p-3">
-                  <RunDetail run={run} onEdit={onEdit} />
+                  <RunDetail run={run} onEdit={onEdit} onToggleTimer={onToggleTimer} />
                 </div>
               )}
             </li>
@@ -145,7 +169,7 @@ export default function RunsTable({ runs, onEdit }: { runs: Run[]; onEdit: (run:
   );
 }
 
-function Mini({ label, value }: { label: string; value: string }) {
+function Mini({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="min-w-0">
       <p className="text-slate-500">{label}</p>

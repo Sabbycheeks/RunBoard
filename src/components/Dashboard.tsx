@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { DEFAULT_DEPARTMENTS } from "@/lib/departments";
 import { supplyHouseLabel } from "@/lib/format";
 import { computeStats } from "@/lib/stats";
 import type { PreventableStatus, Run } from "@/lib/types";
 import DepartmentManager from "./DepartmentManager";
 import RunFormModal, { type RunnerInfo, type TechnicianInfo } from "./RunFormModal";
+import { toggleTimer } from "./RunTimer";
 import KpiCards from "./KpiCards";
 import RunsTable from "./RunsTable";
 
@@ -29,9 +30,12 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
   const [editingDepartments, setEditingDepartments] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
+  const toastTimer = useRef<number | undefined>(undefined);
   const showToast = useCallback((message: string) => {
+    // Restart the timer so an older toast's timeout doesn't hide this one early.
+    window.clearTimeout(toastTimer.current);
     setToast(message);
-    window.setTimeout(() => setToast(null), 3500);
+    toastTimer.current = window.setTimeout(() => setToast(null), 3500);
   }, []);
 
   const filtered = useMemo(() => {
@@ -97,6 +101,19 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
       );
     },
     [runs, showToast],
+  );
+
+  const toggleRunTimer = useCallback(
+    (run: Run) => {
+      const updated = toggleTimer(run);
+      setRuns((cur) => cur.map((r) => (r.id === run.id ? updated : r)));
+      showToast(
+        updated.timerStartedAt != null
+          ? "Run started — timer is running (demo only)."
+          : `Run ended after ${updated.durationText} (demo only).`,
+      );
+    },
+    [showToast],
   );
 
   const closeForm = useCallback(() => setForm(null), []);
@@ -214,7 +231,7 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
             </div>
           </div>
 
-          <RunsTable runs={filtered} onEdit={setForm} />
+          <RunsTable runs={filtered} onEdit={setForm} onToggleTimer={toggleRunTimer} />
         </section>
       </main>
 

@@ -20,9 +20,33 @@ export function formatTime(v: string | null): string {
 
 export function formatDuration(mins: number | null): string {
   if (mins == null) return "—";
+  if (mins < 1) return "<1m";
   const h = Math.floor(mins / 60);
   const m = Math.round(mins % 60);
   return h ? `${h}h ${m}m` : `${m}m`;
+}
+
+/** Current local time as "YYYY-MM-DDTHH:mm", the same shape as dates parsed from the export. */
+export function nowLocal(now = new Date()): string {
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+/** Live stopwatch text: "4:07" or "1:02:05". */
+export function formatElapsed(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}
+
+/** Duration text in the export's style ("1 hr 57 min", "45 min"); under a minute shows seconds. */
+export function durationText(ms: number): string {
+  const totalSec = Math.max(0, Math.round(ms / 1000));
+  if (totalSec < 60) return `${totalSec} sec`;
+  const mins = Math.round(totalSec / 60);
+  const h = Math.floor(mins / 60);
+  return h ? `${h} hr ${mins % 60} min` : `${mins} min`;
 }
 
 export function supplyHouseLabel(run: Run): string {
