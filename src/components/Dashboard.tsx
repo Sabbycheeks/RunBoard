@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { DEFAULT_DEPARTMENTS } from "@/lib/departments";
-import { supplyHouseLabel } from "@/lib/format";
+import { monthLabel, nowLocal, supplyHouseLabel } from "@/lib/format";
 import { computeStats } from "@/lib/stats";
 import type { PreventableStatus, Run } from "@/lib/types";
 import DepartmentManager from "./DepartmentManager";
@@ -24,6 +24,9 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<PreventableStatus | "All">("All");
   const [runType, setRunType] = useState("All");
+  // "YYYY-MM", or "All". Starts on the current month.
+  const [currentMonth] = useState(() => nowLocal().slice(0, 7));
+  const [month, setMonth] = useState(currentMonth);
   // null = closed, "new" = creating, otherwise the run being edited.
   const [form, setForm] = useState<Run | "new" | null>(null);
   const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
@@ -38,9 +41,21 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
     toastTimer.current = window.setTimeout(() => setToast(null), 3500);
   }, []);
 
+  // Every month that has runs, plus the current month, newest first.
+  const months = useMemo(() => {
+    const keys = new Set(runs.map((r) => r.date?.slice(0, 7)).filter((k): k is string => !!k));
+    keys.add(currentMonth);
+    return [...keys].sort().reverse();
+  }, [runs, currentMonth]);
+
+  const monthRuns = useMemo(
+    () => (month === "All" ? runs : runs.filter((r) => r.date?.startsWith(month))),
+    [runs, month],
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return runs.filter((r) => {
+    return monthRuns.filter((r) => {
       if (status !== "All" && r.preventable !== status) return false;
       if (runType !== "All" && !r.runTypes.includes(runType)) return false;
       if (!q) return true;
@@ -57,7 +72,7 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
         .toLowerCase()
         .includes(q);
     });
-  }, [runs, query, status, runType]);
+  }, [monthRuns, query, status, runType]);
 
   const stats = useMemo(() => computeStats(filtered), [filtered]);
 
@@ -173,6 +188,34 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
       </header>
 
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">
+              {month === "All" ? "All months" : monthLabel(month)}
+            </h2>
+            <p className="text-xs text-slate-500">
+              {monthRuns.length} {monthRuns.length === 1 ? "run" : "runs"}
+              {month === currentMonth && " · current month"}
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            <span className="shrink-0">Month</span>
+            <select
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 sm:w-60"
+            >
+              {months.map((m) => (
+                <option key={m} value={m}>
+                  {monthLabel(m)}
+                  {m === currentMonth ? " (current)" : ""}
+                </option>
+              ))}
+              <option value="All">All months</option>
+            </select>
+          </label>
+        </div>
+
         <KpiCards stats={stats} />
 
         <section className="space-y-3">
@@ -180,7 +223,7 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
             <div>
               <h2 className="text-base font-semibold text-slate-900">Recent Runs</h2>
               <p className="text-xs text-slate-500">
-                {filtered.length} of {runs.length} runs · click a row to see parts and routing
+                {filtered.length} of {monthRuns.length} runs · click a row to see parts and routing
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">

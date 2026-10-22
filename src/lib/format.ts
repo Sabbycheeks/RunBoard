@@ -26,6 +26,17 @@ export function formatDuration(mins: number | null): string {
   return h ? `${h}h ${m}m` : `${m}m`;
 }
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/** "2026-10" -> "October 2026" */
+export function monthLabel(key: string): string {
+  const [y, m] = key.split("-").map(Number);
+  return `${MONTH_NAMES[m - 1]} ${y}`;
+}
+
 /** Current local time as "YYYY-MM-DDTHH:mm", the same shape as dates parsed from the export. */
 export function nowLocal(now = new Date()): string {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
