@@ -274,7 +274,12 @@ export default function Dashboard({ initialRuns, source, sourceLabel }: Props) {
             </div>
           </div>
 
-          <RunsTable runs={filtered} onEdit={setForm} onToggleTimer={toggleRunTimer} />
+          <RunsTable
+            runs={filtered}
+            onEdit={setForm}
+            onToggleTimer={toggleRunTimer}
+            groupByMonth={month === "All"}
+          />
         </section>
       </main>
 
